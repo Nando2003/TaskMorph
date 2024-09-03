@@ -6,13 +6,13 @@ def parse_requirements(filename:str) -> list:
         return [line.strip() for line in file.readlines() if line.strip()]
 
 setup(
-    name='ezScraping',
+    name='TaskMorph',
     version='0.1',
     packages=find_packages(where='lib'),
     package_dir={'' : 'lib'},
     include_package_data=True,
     license='unlincense',
-    description='Methods that will help you when coding web scraping',
+    description='Methods that will help you in coding RPAs',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     url='https://github.com/Nando2003/ezScraping',
