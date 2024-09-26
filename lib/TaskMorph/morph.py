@@ -143,7 +143,7 @@ class TaskMorph:
                 pass
             
             finally:
-                wait_time_image += 1
+                elapsed_time += 1
                 sleep(1)
         
         return None
