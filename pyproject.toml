@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "TaskMorph"
+version = "0.1"
+description = "Methods that will help you in coding RPAs"
+authors = ["Fernando Fontes <nandofontes30@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+selenium = "^4.23.1"
+webdriver-manager = "^3.8.6"
+undetected-chromedriver = "^3.5.5"
+pyautogui = "^0.9.53"
+pillow = "^10.4.0"
+opencv-python = "^4.10.0.82"
+
+[tool.poetry.build]
+
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
