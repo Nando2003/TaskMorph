@@ -8,8 +8,7 @@ def parse_requirements(filename:str) -> list:
 setup(
     name='TaskMorph',
     version='0.1',
-    packages=find_packages(where='lib'),
-    package_dir={'' : 'lib'},
+    packages=find_packages(),
     include_package_data=True,
     license='unlincense',
     description='Methods that will help you in coding RPAs',
