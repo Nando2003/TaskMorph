@@ -107,10 +107,10 @@ class TaskMorph:
         Returns:
             WebElement: Retorna o Elemento encontrado.
         """
-        if by not in GoAutomator.by_mapping:
+        if by not in TaskMorph.by_mapping:
             raise ValueError(f"Invalid locator type: {by}")
         
-        by_type = GoAutomator.by_mapping[by]
+        by_type = TaskMorph.by_mapping[by]
         
         element = WebDriverWait(driver, timeout).until(
             expected_conditions.presence_of_element_located(
@@ -151,10 +151,10 @@ class TaskMorph:
         Returns:
             List[WebElement]: Retorna uma lista de Elementos.
         """
-        if by not in GoAutomator.by_mapping:
+        if by not in TaskMorph.by_mapping:
             raise ValueError(f"Invalid locator type: {by}")
         
-        by_type = GoAutomator.by_mapping[by]
+        by_type = TaskMorph.by_mapping[by]
         
         element = WebDriverWait(driver, timeout).until(
             expected_conditions.presence_of_all_elements_located(
@@ -196,7 +196,7 @@ class TaskMorph:
             WebElement: Caso encontrado, retornará o Elemento. Se não encontrado, retornará None
         """
         try:
-            element = GoAutomator.find_element(driver, by, value, timeout)
+            element = TaskMorph.find_element(driver, by, value, timeout)
             return element
         
         except (TimeoutException, NoSuchElementException):
@@ -239,7 +239,7 @@ class TaskMorph:
             driver.switch_to.default_content()
             return
         
-        frame_element: WebElement = GoAutomator.find_element(driver, by, value, timeout)
+        frame_element: WebElement = TaskMorph.find_element(driver, by, value, timeout)
         driver.switch_to.frame(frame_element)
         
     @staticmethod
@@ -456,7 +456,7 @@ class TaskMorph:
             bool: Retorna True se a imagem foi localizada e a ação foi realizada com sucesso. Retorna False se a imagem não foi encontrada dentro do tempo especificado ou se a ação não foi realizada.
         """
         if isinstance(image, str):
-            location = GoAutomator.locate_image(image, search_time)
+            location = TaskMorph.locate_image(image, search_time)
             
         elif isinstance(image, (pyautogui.Point, tuple)):
             location = image
