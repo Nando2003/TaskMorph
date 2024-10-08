@@ -7,7 +7,7 @@ def parse_requirements(filename:str) -> list:
 
 setup(
     name='TaskMorph',
-    version='0.1',
+    version='0.2',
     packages=find_packages(),
     include_package_data=True,
     license='unlincense',
