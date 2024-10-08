@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "TaskMorph"
-version = "0.1"
+version = "0.2"
 description = "Methods that will help you in coding RPAs"
 authors = ["Fernando Fontes <nandofontes30@gmail.com>"]
 
