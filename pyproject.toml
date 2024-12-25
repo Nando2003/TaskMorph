@@ -3,6 +3,7 @@ name = "TaskMorph"
 version = "0.3"
 description = "Methods that will help you in coding RPAs"
 authors = ["Fernando Fontes <nandofontes30@gmail.com>"]
+readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.8"
