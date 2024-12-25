@@ -27,12 +27,12 @@ from typing import (
 try:
     import pyautogui
 except ImportError:
-    import collections
     pyautogui = None
 
 import os
 import io
 import json
+import collections
 from time import sleep
 
 from TaskMorph.models import ByMapping
@@ -461,7 +461,7 @@ class TaskMorph:
         confidence: float = 0.7, 
         grayscale: bool = False,
         raise_exeception: bool = False
-    ):
+    ) -> Optional[__Point]:
         """
         Localiza a imagem especificada na tela, retornando as coordenadas do centro da imagem localizada.
 
@@ -536,7 +536,7 @@ class TaskMorph:
             if isinstance(image, str):
                 location = TaskMorph.locate_image(image, search_time)
                 
-            elif isinstance(image, (__Point, tuple)):
+            elif isinstance(image, (pyautogui.Point, tuple)):
                 location = image
                 
             if location:
