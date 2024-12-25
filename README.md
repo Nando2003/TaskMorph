@@ -1,4 +1,4 @@
-# TaskMorph - README
+# TaskMorph
 
 O **TaskMorph** é um pacote Python desenvolvido para automatizar interações com o navegador, com foco em testes e automação de tarefas. Ele utiliza a biblioteca `Selenium` para manipulação do navegador e `pyautogui` para interações baseadas em imagens ou coordenadas na tela.
 
