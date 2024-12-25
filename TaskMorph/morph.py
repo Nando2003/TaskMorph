@@ -1,6 +1,4 @@
 # Selenium & PyAutoGUI
-from webdriver_manager.chrome import ChromeDriverManager
-
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 
@@ -11,49 +9,58 @@ from selenium.webdriver.support import expected_conditions
 
 from selenium.common.exceptions import (
     TimeoutException,
-    NoSuchElementException
+    NoSuchElementException,
+    StaleElementReferenceException
 )
 
-import pyautogui
-from pyautogui import Point
-from time import sleep
-
-# Pillow
 from PIL import Image
 
-
-# Standand Packages
-import os
-import io
-import json
 from typing import (
     Union,
     Literal,
     Optional,
     List,
     Tuple,
-    Dict,
     Any
 )
 
+try:
+    import pyautogui
+except ImportError:
+    import collections
+    pyautogui = None
+
+import os
+import io
+import json
+from time import sleep
+
+from TaskMorph.models import ByMapping
+from TaskMorph.errors import DriverNotInitializedError
+
 
 class TaskMorph:
+    # Facilita a procura por um By
+    by_mapping = ByMapping(
+        id = By.ID,
+        name = By.NAME,
+        xpath = By.XPATH,
+        tag_name = By.TAG_NAME,
+        link_text = By.LINK_TEXT,
+        class_name = By.CLASS_NAME,
+        css_selector = By.CSS_SELECTOR,
+        partial_link_text = By.PARTIAL_LINK_TEXT 
+    )
     
-    by_mapping: Dict[str, str] = {
-        "id" : By.ID,
-        "name" : By.NAME,
-        "xpath" : By.XPATH,
-        "tag_name" : By.TAG_NAME,
-        "link_text" : By.LINK_TEXT,
-        "class_name" : By.CLASS_NAME,
-        "css_selector" : By.CSS_SELECTOR,
-        "partial_link_text" : By.PARTIAL_LINK_TEXT,
-    }
+    # Somente um driver pode ser inicializado
+    __driver: Optional[WebDriver] = None
+    __Point = collections.namedtuple("Point", "x y")
     
-    @staticmethod
-    def initialize_driver(
-        driver_path: Optional[str] = None,
+    @classmethod
+    def start_driver(
+        cls,
         options: Optional[uc.ChromeOptions] = None,
+        driver_path: Optional[str] = None,
     ) -> WebDriver:
         """
         Inicializa o driver.
@@ -64,21 +71,24 @@ class TaskMorph:
 
         Returns:
             WebDriver: Retorna o WebDriver configurado (ou não).
-        """
-        if not driver_path:
-            driver_path = ChromeDriverManager().install()
+        """ 
+        if not cls.__driver:
+            cls.__driver = uc.Chrome(
+                options = options if options else None,
+                driver_executable_path = driver_path if driver_path else None
+            )
             
-        if not options:
-            options = uc.ChromeOptions()
-        
-        return uc.Chrome(
-            options = options,
-            driver_executable_path = driver_path
-        )
-        
-    @staticmethod
+        return cls.__driver
+    
+    @classmethod
+    def close_driver(cls) -> None:
+        if cls.__driver:
+            cls.__driver.quit()
+            cls.__driver = None
+    
+    @classmethod
     def find_element(
-        driver: WebDriver,
+        cls,
         by: Literal[
             'id', 
             'name', 
@@ -96,23 +106,26 @@ class TaskMorph:
         Procura o Elemento do valor especificado.
 
         Args:
-            driver (WebDriver):
             by (Literal[ &#39;id&#39;, &#39;name&#39;, &#39;xpath&#39;, &#39;tag_name&#39;, &#39;link_text&#39;, &#39;class_name&#39;, &#39;css_selector&#39;, &#39;partial_link_text&#39;, ]): 
             value (str):
             timeout (int, optional): Tempo de espera. Defaults to 10.
 
         Raises:
             ValueError: Levantará a Exception quando a chave by não for encontrada no dicionário.
-
+            DriverNotInitializedError: Lenvantará a Exception quando o driver não tiver sido inicializado.
+            
         Returns:
             WebElement: Retorna o Elemento encontrado.
         """
-        if by not in TaskMorph.by_mapping:
+        if not cls.__driver:
+            raise DriverNotInitializedError()
+        
+        if by not in cls.by_mapping:
             raise ValueError(f"Invalid locator type: {by}")
         
-        by_type = TaskMorph.by_mapping[by]
+        by_type = cls.by_mapping[by]
         
-        element = WebDriverWait(driver, timeout).until(
+        element = WebDriverWait(cls.__driver, timeout).until(
             expected_conditions.presence_of_element_located(
                 (by_type, value)
             )
@@ -120,9 +133,9 @@ class TaskMorph:
         
         return element
     
-    @staticmethod
+    @classmethod
     def find_elements(
-        driver: WebDriver,
+        cls,
         by: Literal[
             'id', 
             'name', 
@@ -140,23 +153,26 @@ class TaskMorph:
         Procura os Elementos que contém o valor especificado.
 
         Args:
-            driver (WebDriver):
             by (Literal[ &#39;id&#39;, &#39;name&#39;, &#39;xpath&#39;, &#39;tag_name&#39;, &#39;link_text&#39;, &#39;class_name&#39;, &#39;css_selector&#39;, &#39;partial_link_text&#39;, ]): 
             value (str):
             timeout (int, optional): Tempo de espera. Defaults to 10.
 
         Raises:
             ValueError: Levantará a Exception quando a chave by não for encontrada no dicionário.
+            DriverNotInitializedError: Lenvantará a Exception quando o driver não tiver sido inicializado.
 
         Returns:
             List[WebElement]: Retorna uma lista de Elementos.
         """
-        if by not in TaskMorph.by_mapping:
+        if not cls.__driver:
+            raise DriverNotInitializedError()
+        
+        if by not in cls.by_mapping:
             raise ValueError(f"Invalid locator type: {by}")
         
-        by_type = TaskMorph.by_mapping[by]
+        by_type = cls.by_mapping[by]
         
-        element = WebDriverWait(driver, timeout).until(
+        element = WebDriverWait(cls.__driver, timeout).until(
             expected_conditions.presence_of_all_elements_located(
                 (by_type, value)
             )
@@ -164,9 +180,43 @@ class TaskMorph:
         
         return element
     
-    @staticmethod
+    @classmethod
+    def find_element_clickable( 
+        cls,
+        by: Literal[
+            'id', 
+            'name', 
+            'xpath', 
+            'tag_name', 
+            'link_text', 
+            'class_name',
+            'css_selector',
+            'partial_link_text', 
+        ],
+        value: str,
+        timeout: int = 10,
+        max_retries: int = 5
+    ):
+        if not cls.__driver:
+            raise DriverNotInitializedError()
+        
+        retries = 0
+        while retries < max_retries:
+            try:
+                element = cls.find_element(by, value)
+                element = WebDriverWait(cls.__driver, timeout).until(
+                    expected_conditions.element_to_be_clickable(element)
+                )
+                return element
+            
+            except (TimeoutException, StaleElementReferenceException):
+                retries += 1
+        
+        raise TimeoutException(f"Elemento '{value}' não ficou clicável após {max_retries} tentativas.")
+    
+    @classmethod
     def find_element_or_none(
-        driver: WebDriver,
+        cls,
         by: Literal[
             'id', 
             'name', 
@@ -184,28 +234,27 @@ class TaskMorph:
         Procura o Elemento do valor especificado. Se não achado, retornará nulo e não levantará uma Exception.
 
         Args:
-            driver (WebDriver):
             by (Literal[ &#39;id&#39;, &#39;name&#39;, &#39;xpath&#39;, &#39;tag_name&#39;, &#39;link_text&#39;, &#39;class_name&#39;, &#39;css_selector&#39;, &#39;partial_link_text&#39;, ]): 
             value (str):
             timeout (int, optional): Tempo de espera. Defaults to 10.
 
         Raises:
             ValueError: Levantará a Exception quando a chave by não for encontrada no dicionário.
-
+            DriverNotInitializedError: Lenvantará a Exception quando o driver não tiver sido inicializado.
+            
         Returns:
             WebElement: Caso encontrado, retornará o Elemento. Se não encontrado, retornará None
         """
         try:
-            element = TaskMorph.find_element(driver, by, value, timeout)
+            element = cls.find_element(by, value, timeout)
             return element
         
         except (TimeoutException, NoSuchElementException):
             return None
-    
-    @staticmethod
-    def change_iframe(
-        driver: WebDriver,
         
+    @classmethod
+    def change_iframe(
+        cls,
         by: Optional[
             Literal[
                 'id', 
@@ -218,7 +267,6 @@ class TaskMorph:
                 'partial_link_text', 
             ]
         ] = None,
-        
         value: Optional[str] = None,
         timeout: int = 10
     ):
@@ -227,7 +275,6 @@ class TaskMorph:
         Caso os parametros by e value não sejam declarados, ele voltará para o IFrame padrão.
 
         Args:
-            driver (WebDriver): 
             by (Literal[ &#39;id&#39;, &#39;name&#39;, &#39;xpath&#39;, &#39;tag_name&#39;, &#39;link_text&#39;, &#39;class_name&#39;, &#39;css_selector&#39;, &#39;partial_link_text&#39;, ], optional): 
             value (str, optional): 
             timeout (int, optional): Tempo de espera. Defaults to 10.
@@ -235,18 +282,24 @@ class TaskMorph:
         Raises:
             ValueError: Levantará a Exception quando a chave by não for encontrada no dicionário.
         """
+        if not cls.__driver:
+            raise DriverNotInitializedError()
+        
         if by is None or value is None:
-            driver.switch_to.default_content()
+            cls.__driver.switch_to.default_content()
             return
         
-        frame_element: WebElement = TaskMorph.find_element(driver, by, value, timeout)
-        driver.switch_to.frame(frame_element)
+        frame_element: WebElement = cls.find_element(by, value, timeout)
+        cls.__driver.switch_to.frame(frame_element)
         
-    @staticmethod
-    def get_all_headers(driver: WebDriver) -> Optional[List[dict]]:
+    @classmethod
+    def get_all_headers(cls) -> Optional[List[dict]]:
+        if not cls.__driver:
+            raise DriverNotInitializedError()
+        
         list_headers = []
         
-        logs = driver.get_log('performance')
+        logs = cls.__driver.get_log('performance')
 
         for entry in logs:
             try:
@@ -262,27 +315,39 @@ class TaskMorph:
 
         return list_headers
     
-    @staticmethod
-    def get_performance_logs(driver: WebDriver) -> List[dict]:
-        logs = driver.get_log('performance')
+    @classmethod
+    def get_performance_logs(cls) -> List[dict]:
+        if not cls.__driver:
+            raise DriverNotInitializedError()
+        
+        logs = cls.__driver.get_log('performance')
         return logs
 
-    @staticmethod
-    def get_console_logs(driver: WebDriver) -> List[dict]:
-        logs = driver.get_log('browser')
+    @classmethod
+    def get_console_logs(cls) -> List[dict]:
+        if not cls.__driver:
+            raise DriverNotInitializedError()
+        
+        logs = cls.__driver.get_log('browser')
         return logs
     
-    @staticmethod
-    def execute_script(driver: WebDriver, script: str, *args) -> Any:
-        return driver.execute_script(script, *args)
+    @classmethod
+    def execute_script(cls, script: str, *args) -> Any:
+        if not cls.__driver:
+            raise DriverNotInitializedError()
+        
+        return cls.__driver.execute_script(script, *args)
 
-    @staticmethod
-    def execute_async_script(driver: WebDriver, script: str, *args) -> Any:
-        return driver.execute_async_script(script, *args)
+    @classmethod
+    def execute_async_script(cls, script: str, *args) -> Any:
+        if not cls.__driver:
+            raise DriverNotInitializedError()
+        
+        return cls.__driver.execute_async_script(script, *args)
     
-    @staticmethod
+    @classmethod
     def scroll_page(
-        driver: WebDriver, 
+        cls, 
         direction: Literal['up', 'down'] = 'down', 
         amount: int = 300  
     ):
@@ -290,60 +355,70 @@ class TaskMorph:
         Scrolla a página.
 
         Args:
-            driver (WebDriver):
             direction (Literal[&#39;up&#39;, &#39;down&#39;], optional): Lado que deseja scrollar. Defaults to 'down'.
             amount (int, optional): Quantidade que deseja scrollar. Defaults to 300.
         """
+        if not cls.__driver:
+            raise DriverNotInitializedError()
+        
         if direction == 'down':
-            driver.execute_script(f"window.scrollBy(0, {amount});")
+            cls.__driver.execute_script(f"window.scrollBy(0, {amount});")
         elif direction == 'up':
-            driver.execute_script(f"window.scrollBy(0, -{amount});")
+            cls.__driver.execute_script(f"window.scrollBy(0, -{amount});")
 
-    @staticmethod         
-    def get_local_storage(driver: WebDriver) -> dict:
-        return driver.execute_script("return window.localStorage;")
+    @classmethod         
+    def get_local_storage(cls) -> dict:
+        if not cls.__driver:
+            raise DriverNotInitializedError()
+        
+        return cls.__driver.execute_script("return window.localStorage;")
 
-    @staticmethod
-    def set_local_storage(driver: WebDriver, key: str, value: str) -> None:
-        driver.execute_script(f"window.localStorage.setItem('{key}', '{value}');")
+    @classmethod
+    def set_local_storage(cls, key: str, value: str) -> None:
+        if not cls.__driver:
+            raise DriverNotInitializedError()
+        
+        cls.__driver.execute_script(f"window.localStorage.setItem('{key}', '{value}');")
     
-    @staticmethod
-    def accept_alert(driver: WebDriver) -> bool:
+    @classmethod
+    def accept_alert(cls) -> bool:
         """
         Aceita o alert.
 
-        Args:
-            driver (WebDriver):
-
         Returns:
             bool: Retorna True caso encontre o alert. Retorna False caso não encontre o alert.
         """
         try:
-            WebDriverWait(driver, 10).until(expected_conditions.alert_is_present()).accept()
+            if not cls.__driver:
+                raise DriverNotInitializedError()
+        
+            WebDriverWait(cls.__driver, 10).until(expected_conditions.alert_is_present()).accept()
             return True
+        
         except TimeoutException:
             return False
 
-    @staticmethod
-    def dismiss_alert(driver: WebDriver) -> bool:
+    @classmethod
+    def dismiss_alert(cls) -> bool:
         """
         Recusa o alert.
 
-        Args:
-            driver (WebDriver):
-
         Returns:
             bool: Retorna True caso encontre o alert. Retorna False caso não encontre o alert.
         """
         try:
-            WebDriverWait(driver, 10).until(expected_conditions.alert_is_present()).dismiss()
+            if not cls.__driver:
+                raise DriverNotInitializedError()
+        
+            WebDriverWait(cls.__driver, 10).until(expected_conditions.alert_is_present()).dismiss()
             return True
+        
         except TimeoutException:
             return False
     
-    @staticmethod
+    @classmethod
     def capture_screenshot(
-        driver: WebDriver, 
+        cls,
         filename: str, 
         download_path: Optional[str] = None, 
         region: Optional[Tuple[int, int, int, int]] = None
@@ -352,12 +427,14 @@ class TaskMorph:
         Captura um screenshot do navegador.
 
         Args:
-            driver (WebDriver):
             filename (str): O nome do arquivo que será salvo o screenshot
             download_path (Optional[str], optional): O caminho até a pasta que será salvo o screenshot. Defaults to None.
             region (Optional[Tuple[int, int, int, int]], optional): Região do screenshot. Defaults to None.
         """
-        screenshot = driver.get_screenshot_as_png()
+        if not cls.__driver:
+            raise DriverNotInitializedError()
+        
+        screenshot = cls.__driver.get_screenshot_as_png()
         
         if region:
             screenshot_image = Image.open(io.BytesIO(screenshot))
@@ -384,7 +461,7 @@ class TaskMorph:
         confidence: float = 0.7, 
         grayscale: bool = False,
         raise_exeception: bool = False
-    ) -> Optional[Point]:
+    ):
         """
         Localiza a imagem especificada na tela, retornando as coordenadas do centro da imagem localizada.
 
@@ -414,33 +491,33 @@ class TaskMorph:
             dentro do tempo máximo.
             
         """
-
-        elapsed_time  = 0
-        while elapsed_time <= max_search_duration:
-            try:
-                located_image = pyautogui.locateCenterOnScreen(
-                    image      = image_path,
-                    region     =    region,
-                    grayscale  = grayscale,
-                    confidence = confidence
-                ) # type: ignore
-                
-                if located_image:
-                    return located_image
+        if pyautogui:
+            elapsed_time  = 0
+            while elapsed_time <= max_search_duration:
+                try:
+                    located_image = pyautogui.locateCenterOnScreen(
+                        image      = image_path,
+                        region     =    region,
+                        grayscale  = grayscale,
+                        confidence = confidence
+                    ) # type: ignore
                     
-            except pyautogui.ImageNotFoundException as e:
-                if raise_exeception:
-                    raise e
+                    if located_image:
+                        return located_image
+                        
+                except pyautogui.ImageNotFoundException as e:
+                    if raise_exeception:
+                        raise e
+                
+                finally:
+                    elapsed_time += 1
+                    sleep(1)
+        else:
+            raise ModuleNotFoundError('Para utilizar esse metódo é necessário installar o `pyautogui`e `opencv-python`')
             
-            finally:
-                elapsed_time += 1
-                sleep(1)
-        
-        return None
-    
     @staticmethod
     def navigate_and_interact(
-        image: Union[str, pyautogui.Point], 
+        image: Union[str, __Point],
         action: Literal['click', 'close', 'double_click'] = 'click', 
         search_time: int = 10
     ) -> bool:
@@ -455,30 +532,36 @@ class TaskMorph:
         Returns:
             bool: Retorna True se a imagem foi localizada e a ação foi realizada com sucesso. Retorna False se a imagem não foi encontrada dentro do tempo especificado ou se a ação não foi realizada.
         """
-        if isinstance(image, str):
-            location = TaskMorph.locate_image(image, search_time)
+        if pyautogui:
+            if isinstance(image, str):
+                location = TaskMorph.locate_image(image, search_time)
+                
+            elif isinstance(image, (__Point, tuple)):
+                location = image
+                
+            if location:
+                if action == 'click':
+                    pyautogui.click(location)
+                elif action == 'close':
+                    pyautogui.press('esc')
+                elif action == 'double_click':
+                    pyautogui.doubleClick(location)
+                return True
             
-        elif isinstance(image, (pyautogui.Point, tuple)):
-            location = image
-            
-        if location:
-            if action == 'click':
-                pyautogui.click(location)
-            elif action == 'close':
-                pyautogui.press('esc')
-            elif action == 'double_click':
-                pyautogui.doubleClick(location)
-            return True
-        
-        return False
+            return False
+        else:
+            raise ModuleNotFoundError('Para utilizar esse metódo é necessário installar o `pyautogui`e `opencv-python`')
         
     def center_mouse_and_click(self, click_mouse: Optional[bool] = True) -> None:
-        screen_width, screen_height = pyautogui.size()
-        
-        center_x = screen_width // 2
-        center_y = screen_height // 2
-        
-        pyautogui.moveTo(center_x, center_y)
-        
-        if click_mouse:
-            pyautogui.click()
+        if pyautogui:
+            screen_width, screen_height = pyautogui.size()
+            
+            center_x = screen_width // 2
+            center_y = screen_height // 2
+            
+            pyautogui.moveTo(center_x, center_y)
+            
+            if click_mouse:
+                pyautogui.click()
+        else:
+            raise ModuleNotFoundError('Para utilizar esse metódo é necessário installar o `pyautogui`e `opencv-python`')
